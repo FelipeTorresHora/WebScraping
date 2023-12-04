@@ -9,11 +9,17 @@ linhas = soup.find(id='tabelaResultado').find('tbody').find_all('tr')
 
 for linha in linhas:
     dados_fundo = linha.find_all('td')
-    print(
-        f"[{dados_fundo[0].text}]\n"
-        f"\tCotação: {dados_fundo[2].text}\n"
-        f"\t\Setores: {dados_fundo[1].text}\n"
-        f"\tDY %: {dados_fundo[4].text}\n"
-        f"\tP/VP: {dados_fundo[5].text}\n"
-    )
-
+    
+    codigo = dados_fundo[0].text
+    segmento = dados_fundo[1].text
+    cotacao_atual = dados_fundo[2].text
+    ffo_yield = dados_fundo[3].text
+    dividend_yield = dados_fundo[4].text
+    p_vp = dados_fundo[5].text
+    valor_mercado = dados_fundo[6].text
+    liquidez = dados_fundo[7].text
+    qt_imoveis = dados_fundo[8].text
+    preco_m2 = dados_fundo[9].text
+    aluguel_m2 = dados_fundo[10].text
+    cap_rate = dados_fundo[11].text
+    vacancia_media = dados_fundo[12].text
