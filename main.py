@@ -1,7 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import locale
-from modelos import FundoImobiliario,Estrategia
+from tabulate import tabulate
+from modelos import *
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8') 
 def trata_porcentagem(porcentagem):
@@ -14,21 +15,21 @@ def trata_decimal(decimal):
     """
     Função para tirar o R$ e o decimal.
     """
-    return locale.atof(decimal.split)
+    return locale.atof(decimal.split()[0])
 #header necessário para que o servidor entenda que estamos buscando informações no servidor.
 headers = {"User-Agent" : "Mozilla/5.0"} 
 resposta = requests.get('https://fundamentus.com.br/fii_resultado.php', headers = headers)
 soup = BeautifulSoup(resposta.text, 'html.parser')
-linhas = soup.find(id='tabelaResultado').find('tbody').find_all('tr')
+linhas = soup.find(id='tabelaResultado').find('tbody').find_all('tr') 
 
 resultado = []
 estrategia = Estrategia(
-    cotacao_atual_minima=50.0,
-    dividend_yield_minimo=10,
-    p_vp_minimo=0.70,
-    valor_mercado_minimo=20000000,
-    qt_minima_imoveis=5,
-    maxima_vacancia_media=10
+    cotacao_atual_minima=30.0,
+    dividend_yield_minimo=3,
+    p_vp_minimo=0.50,
+    valor_mercado_minimo=20000,
+    qt_minima_imoveis=2,
+    maxima_vacancia_media=5
 )
 
 for linha in linhas:
@@ -54,4 +55,14 @@ for linha in linhas:
      
     if estrategia.aplica_estrategia(fundo_imobiliario):
         resultado.append(fundo_imobiliario)
-print(resultado)
+#print(resultado)
+cabecalho = ["Código","Segmento","Cotação Atual","Dividend Yield"]
+tabela = []
+for elemento in resultado:
+    tabela.append([
+        elemento.codigo,   
+        elemento.segmento,
+        locale.currency(elemento.cotacao_atual),
+        f"{locale.str(elemento.dividend_yield)}%"
+    ])
+print(tabulate(tabela, headers=cabecalho,showindex="always",tablefmt="fancy_grid")) 
