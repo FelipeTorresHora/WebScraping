@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import locale
 import pandas as pd
 from modelos import *
+
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 def obter_dados_fiis():
     headers = {"User-Agent": "Mozilla/5.0"}
