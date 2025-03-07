@@ -1,43 +1,7 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import locale
 import pandas as pd
-from modelos import *
+from data import obter_dados_fiis
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-def obter_dados_fiis():
-    headers = {"User-Agent": "Mozilla/5.0"}
-    resposta = requests.get('https://fundamentus.com.br/fii_resultado.php', headers=headers)
-    soup = BeautifulSoup(resposta.text, 'html.parser')
-    
-    dados = []
-    try:
-        tabela = soup.find(id='tabelaResultado')
-        if tabela and tabela.find('tbody'):
-            linhas = tabela.find('tbody').find_all('tr')
-            for linha in linhas:
-                dados_fundo = linha.find_all('td')
-                cotacao = locale.atof(dados_fundo[2].text.split()[0])
-                dy = locale.atof(dados_fundo[4].text.split('%')[0])
-                
-                # Filtro de outliers
-                if cotacao <= 3000 and dy <= 300:
-                    dados.append({
-                        'código': dados_fundo[0].text,
-                        'segmento': dados_fundo[1].text,
-                        'cotação': cotacao,
-                        'dividend_yield': dy,
-                        'p_vp': locale.atof(dados_fundo[5].text.split()[0]),
-                        'valor_mercado': locale.atof(dados_fundo[6].text.split()[0]),
-                        'liquidez': locale.atof(dados_fundo[7].text.split()[0]),
-                        'qt_imoveis': int(dados_fundo[8].text),
-                        'vacancia': locale.atof(dados_fundo[12].text.split('%')[0])
-                    })
-    except Exception as e:
-        st.error(f"Erro ao obter dados: {str(e)}")
-    
-    return pd.DataFrame(dados)
 def main():
     st.set_page_config(page_title="Dashboard FIIs", layout="wide")
     
@@ -46,33 +10,40 @@ def main():
     # Sidebar com filtros
     st.sidebar.header("Filtros")
     
-    df = obter_dados_fiis()
+    try:
+        df = obter_dados_fiis()
+    except Exception as e:
+        st.error(str(e))
+        return
     
-    # Filtros com number_input
+    # Pesquisa por código
+    pesquisa_codigo = st.sidebar.text_input("Pesquisar por Código (ex.: MXRF11)", "").upper()
+    if pesquisa_codigo:
+        df = df[df['código'].str.contains(pesquisa_codigo, case=True)]
+        if df.empty:
+            st.sidebar.warning("Nenhum FII encontrado com esse código.")
+
+    # Filtros
     col_filtros1, col_filtros2 = st.sidebar.columns(2)
     
     with col_filtros1:
-        min_cotacao = st.number_input(
-            "Cotação Mínima (R$)", 
-            value=30.0,
-            min_value=float(df['cotação'].min()),
-            max_value=float(df['cotação'].max()),
-            step=1.0
-        )
-    
+        min_cotacao = st.number_input("Cotação Mínima (R$)", value=30.0, min_value=float(df['cotação'].min()), max_value=float(df['cotação'].max()), step=1.0)
+        min_dy = st.number_input("Dividend Yield Mínimo (%)", value=9.0, min_value=float(df['dividend_yield'].min()), max_value=float(df['dividend_yield'].max()), step=0.1)
+        min_valor_mercado = st.number_input("Valor de Mercado Mínimo (R$)", value=100000000.0, min_value=float(df['valor_mercado'].min()), max_value=float(df['valor_mercado'].max()), step=1000000.0)
+
     with col_filtros2:
-        min_dy = st.number_input(
-            "Dividend Yield Mínimo (%)", 
-            value=9.0,
-            min_value=float(df['dividend_yield'].min()),
-            max_value=float(df['dividend_yield'].max()),
-            step=0.1
-        )
-    
+        min_liquidez = st.number_input("Liquidez Mínima (R$)", value=10000.0, min_value=float(df['liquidez'].min()), max_value=float(df['liquidez'].max()), step=1000.0)
+        min_qt_imoveis = st.number_input("Quantidade Mínima de Imóveis", value=1, min_value=int(df['qt_imoveis'].min()), max_value=int(df['qt_imoveis'].max()), step=1)
+        max_vacancia = st.number_input("Vacância Máxima (%)", value=20.0, min_value=float(df['vacancia'].min()), max_value=float(df['vacancia'].max()), step=1.0)
+
     # Aplicando filtros
     df_filtrado = df[
         (df['cotação'] >= min_cotacao) &
-        (df['dividend_yield'] >= min_dy)
+        (df['dividend_yield'] >= min_dy) &
+        (df['valor_mercado'] >= min_valor_mercado) &
+        (df['liquidez'] >= min_liquidez) &
+        (df['qt_imoveis'] >= min_qt_imoveis) &
+        (df['vacancia'] <= max_vacancia)
     ]
     
     # Layout principal
@@ -94,10 +65,13 @@ def main():
             'cotação': 'R$ {:.2f}',
             'dividend_yield': '{:.2f}%',
             'p_vp': '{:.2f}',
-            'valor_mercado': '{:.0f}',
-            'liquidez': '{:.0f}',
-            'vacancia': '{:.2f}%'
+            'valor_mercado': 'R$ {:.0f}',
+            'liquidez': 'R$ {:.0f}',
+            'vacancia': '{:.2f}%',
+            'qt_imoveis': '{:d}'
         })
     )
+    st.write(f"Total de FIIs encontrados: {len(df_filtrado)}")
+
 if __name__ == "__main__":
     main()
