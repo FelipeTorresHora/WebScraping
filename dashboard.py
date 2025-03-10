@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 from data import obter_dados_fiis, get_historical_data
 from ml import prever_preco_prophet
@@ -132,28 +133,53 @@ def main():
         if st.sidebar.button("Buscar Dados Históricos"):
             # Obter dados históricos de preço
             df_historical = get_historical_data(fii_code)
-            if df_historical is None:
+            if df_historical is None or df_historical.empty:
                 st.error("Não foi possível obter dados históricos para este FII.")
             else:
-                # Visualizar dados históricos de preço
-                st.subheader("Preço Histórico (Últimos 90 Dias)")
-                st.line_chart(df_historical.set_index("date")['price'])
+                # Garantir que 'date' seja datetime
+                df_historical['date'] = pd.to_datetime(df_historical['date'])
                 
-                # Previsão com machine learning para preços futuros
-                resultados = prever_preco_prophet(df_historical)
-                st.write(f"Previsão de preço daqui a 30 dias: R$ {resultados['ultima_previsao']:.2f}")
-                st.write(f"R² do modelo: {resultados['r2']:.2f}")
+                # Filtrar apenas dias úteis
+                df_historical = df_historical[df_historical['date'].dt.weekday < 5].copy()
                 
-                # Gráfico comparativo com Plotly
-                forecast_df = resultados['forecast'][['ds', 'yhat']].rename(columns={'ds': 'date', 'yhat': 'predicted_price'})
-                historical_df = df_historical.rename(columns={'date': 'date', 'price': 'price'})
-                
-                fig = px.line(historical_df, x='date', y='price', 
-                            labels={'price': 'Preço (R$)', 'date': 'Data'}, 
-                            title=f"Histórico e Previsão de Preço para {fii_code}")
-                fig.add_scatter(x=forecast_df['date'], y=forecast_df['predicted_price'], 
-                              mode='lines', name='Previsão', line=dict(dash='dash'))
-                st.plotly_chart(fig)
+                if df_historical.empty:
+                    st.error("Nenhum dado disponível após filtrar finais de semana.")
+                else:
+                    # Validar dados
+                    if df_historical['price'].isnull().any():
+                        st.warning("Dados contêm valores ausentes. Preenchendo com interpolação.")
+                        df_historical['price'] = df_historical['price'].interpolate()
+                    
+                    # Suavizar os preços
+                    df_historical['price_smooth'] = df_historical['price'].rolling(window=5, min_periods=1).mean()
+                    
+                    # Visualizar dados históricos de preço (original e suavizado)
+                    st.subheader("Preço Histórico (Últimos 90 Dias - Dias Úteis)")
+                    fig_historical = px.line(df_historical, x='date', y=['price', 'price_smooth'],
+                                           labels={'value': 'Preço (R$)', 'date': 'Data'},
+                                           title=f"Preço Original e Suavizado para {fii_code}")
+                    fig_historical.update_traces(line=dict(dash='dash'), selector=dict(name='price_smooth'))
+                    st.plotly_chart(fig_historical)
+                    
+                    # Previsão com machine learning para preços futuros
+                    resultados = prever_preco_prophet(df_historical)
+                    if resultados is None:
+                        st.error("Falha ao gerar previsão. Verifique os logs para mais detalhes.")
+                    else:
+                        st.write(f"Previsão de preço daqui a 30 dias úteis: R$ {resultados['ultima_previsao']:.2f}")
+                        st.write(f"R² do modelo: {resultados['r2']:.2f}")
+                        st.write(f"MAE do modelo: R$ {resultados['mae']:.2f}")
+                        
+                        # Gráfico comparativo com Plotly
+                        forecast_df = resultados['forecast'][['ds', 'yhat']].rename(columns={'ds': 'date', 'yhat': 'predicted_price'})
+                        historical_df = df_historical[['date', 'price_smooth']]
+                        
+                        fig = px.line(historical_df, x='date', y='price_smooth', 
+                                    labels={'price_smooth': 'Preço Suavizado (R$)', 'date': 'Data'}, 
+                                    title=f"Histórico Suavizado e Previsão de Preço para {fii_code} (Dias Úteis)")
+                        fig.add_scatter(x=forecast_df['date'], y=forecast_df['predicted_price'], 
+                                      mode='lines', name='Previsão', line=dict(dash='dash'))
+                        st.plotly_chart(fig)
         else:
             st.info("Digite o código do FII e clique em 'Buscar Dados Históricos' para começar.")
 
