@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from data import obter_dados_fiis, get_historical_data
 from ml import prever_preco_prophet
+from envio import gerar_pdf_relatorio, enviar_email
 
 def main():
     st.set_page_config(page_title="Dashboard FIIs", layout="wide")
@@ -125,35 +126,75 @@ def main():
         )
         st.write(f"Total de FIIs encontrados: {len(df_filtrado)}")
 
+        # Adicionar botões para gerar relatório e enviar e-mail
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            if st.button("Gerar Relatório PDF"):
+                filtros = {
+                    "Cotação Mínima (R$)": min_cotacao,
+                    "Dividend Yield Mínimo (%)": min_dy,
+                    "Valor de Mercado Mínimo (R$)": min_valor_mercado,
+                    "Liquidez Mínima (R$)": min_liquidez,
+                    "Quantidade Mínima de Imóveis": min_qt_imoveis,
+                    "Vacância Máxima (%)": max_vacancia
+                }
+                pdf_path = gerar_pdf_relatorio(filtros, df_filtrado)
+                with open(pdf_path, "rb") as f:
+                    st.download_button(
+                        label="Baixar Relatório PDF",
+                        data=f,
+                        file_name="relatorio_fiis.pdf",
+                        mime="application/pdf"
+                    )
+        
+        with col_btn2:
+            email_destinatario = st.text_input("Digite o e-mail para envio", "exemplo@email.com")
+            if st.button("Enviar Relatório por E-mail"):
+                if not email_destinatario or "@" not in email_destinatario:
+                    st.error("Por favor, insira um e-mail válido.")
+                else:
+                    filtros = {
+                        "Cotação Mínima (R$)": min_cotacao,
+                        "Dividend Yield Mínimo (%)": min_dy,
+                        "Valor de Mercado Mínimo (R$)": min_valor_mercado,
+                        "Liquidez Mínima (R$)": min_liquidez,
+                        "Quantidade Mínima de Imóveis": min_qt_imoveis,
+                        "Vacância Máxima (%)": max_vacancia
+                    }
+                    pdf_path = gerar_pdf_relatorio(filtros, df_filtrado)
+                    corpo_email = (
+                        "Prezado(a),\n\n"
+                        "Segue em anexo o relatório personalizado de Fundos Imobiliários baseado nos filtros aplicados.\n"
+                        "Atenciosamente,\nDashboard FIIs"
+                    )
+                    sucesso = enviar_email(email_destinatario, "Relatório de FIIs", corpo_email, pdf_path)
+                    if sucesso:
+                        st.success(f"Relatório enviado com sucesso para {email_destinatario}!")
+                    else:
+                        st.error("Falha ao enviar o e-mail. Verifique os logs ou as credenciais.")
+
     elif categoria == "Análise Avançada":
         st.sidebar.subheader("Análise Avançada")
         
-        # Entrada para o código do FII
         fii_code = st.sidebar.text_input("Digite o código do FII (ex: MXRF11)", "MXRF11").upper()
         if st.sidebar.button("Buscar Dados Históricos"):
-            # Obter dados históricos de preço
             df_historical = get_historical_data(fii_code)
             if df_historical is None or df_historical.empty:
                 st.error("Não foi possível obter dados históricos para este FII.")
             else:
-                # Garantir que 'date' seja datetime
                 df_historical['date'] = pd.to_datetime(df_historical['date'])
-                
-                # Filtrar apenas dias úteis
                 df_historical = df_historical[df_historical['date'].dt.weekday < 5].copy()
                 
                 if df_historical.empty:
                     st.error("Nenhum dado disponível após filtrar finais de semana.")
                 else:
-                    # Validar dados
                     if df_historical['price'].isnull().any():
                         st.warning("Dados contêm valores ausentes. Preenchendo com interpolação.")
                         df_historical['price'] = df_historical['price'].interpolate()
                     
-                    # Suavizar os preços
                     df_historical['price_smooth'] = df_historical['price'].rolling(window=5, min_periods=1).mean()
                     
-                    # Visualizar dados históricos de preço (original e suavizado)
                     st.subheader("Preço Histórico (Últimos 90 Dias - Dias Úteis)")
                     fig_historical = px.line(df_historical, x='date', y=['price', 'price_smooth'],
                                            labels={'value': 'Preço (R$)', 'date': 'Data'},
@@ -161,7 +202,6 @@ def main():
                     fig_historical.update_traces(line=dict(dash='dash'), selector=dict(name='price_smooth'))
                     st.plotly_chart(fig_historical)
                     
-                    # Previsão com machine learning para preços futuros
                     resultados = prever_preco_prophet(df_historical)
                     if resultados is None:
                         st.error("Falha ao gerar previsão. Verifique os logs para mais detalhes.")
@@ -170,7 +210,6 @@ def main():
                         st.write(f"R² do modelo: {resultados['r2']:.2f}")
                         st.write(f"MAE do modelo: R$ {resultados['mae']:.2f}")
                         
-                        # Gráfico comparativo com Plotly
                         forecast_df = resultados['forecast'][['ds', 'yhat']].rename(columns={'ds': 'date', 'yhat': 'predicted_price'})
                         historical_df = df_historical[['date', 'price_smooth']]
                         
