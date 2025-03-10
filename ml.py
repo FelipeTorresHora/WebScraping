@@ -1,8 +1,6 @@
 import pandas as pd
 from prophet import Prophet
 from sklearn.metrics import r2_score, mean_absolute_error
-import numpy as np
-import matplotlib.pyplot as plt
 
 def prever_preco_prophet(df_historical, days_futuro=30, window=5):
     try:
@@ -74,32 +72,3 @@ def prever_preco_prophet(df_historical, days_futuro=30, window=5):
     except Exception as e:
         print(f"Erro na função prever_preco_prophet: {str(e)}")
         return None
-
-if __name__ == "__main__":
-    # Dados de exemplo para teste
-    dates = pd.date_range(start="2023-01-01", periods=90, freq='B')  # Apenas dias úteis
-    np.random.seed(42)
-    prices = 100 + np.cumsum(np.random.normal(0, 1, len(dates)))  # Simulação de preços
-    
-    df_teste = pd.DataFrame({
-        'date': dates,
-        'price': prices
-    })
-    
-    resultados = prever_preco_prophet(df_teste)
-    
-    if resultados:
-        print("=== Resultados do Modelo Prophet ===")
-        print(f"R²: {resultados['r2']:.4f}")
-        print(f"MAE: {resultados['mae']:.4f} R$")
-        print(f"Previsão de preço para 30 dias: R$ {resultados['ultima_previsao']:.2f}")
-        
-        # Plotar resultados
-        fig1 = resultados['modelo'].plot(resultados['forecast'])
-        plt.title("Previsão do Preço Suavizado (Dias Úteis)")
-        plt.show()
-        
-        fig2 = resultados['modelo'].plot_components(resultados['forecast'])
-        plt.show()
-    else:
-        print("Falha ao gerar previsões.")
