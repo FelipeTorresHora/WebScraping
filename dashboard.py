@@ -4,6 +4,7 @@ import plotly.express as px
 from data import obter_dados_fiis, get_historical_data
 from ml import prever_preco_prophet
 from envio import gerar_pdf_relatorio, enviar_email
+from ai_agent import analyze_fii_with_ai
 
 def main():
     st.set_page_config(page_title="Dashboard FIIs", layout="wide")
@@ -21,7 +22,7 @@ def main():
     st.sidebar.header("Selecione a Categoria")
     categoria = st.sidebar.radio(
         "Escolha uma categoria:",
-        ["Sobre o Projeto", "Filtros Avançados", "Análise Avançada"]
+        ["Sobre o Projeto", "Filtros Avançados", "Análise Avançada", "Assistente de IA"]
     )
 
     # Lógica para cada categoria
@@ -221,6 +222,28 @@ def main():
                         st.plotly_chart(fig)
         else:
             st.info("Digite o código do FII e clique em 'Buscar Dados Históricos' para começar.")
+            
+    elif categoria == "Assistente de IA":
+        st.header("Assistente de IA para Análise de FIIs")
+        st.write("""
+        Utilize nosso assistente de IA integrado com a inteligência artificial do Google para obter análises especializadas 
+        sobre qualquer Fundo Imobiliário. O assistente considerará tanto os dados fundamentais  para fornecer recomendações.
+        """)
 
+        fii_code_ia = st.text_input("Digite o código do FII (ex: MXRF11)", "MXRF11").upper()
+        
+        if st.button("Analisar Fundamentos"):
+            if not fii_code_ia:
+                st.warning("Digite um código válido de FII")
+            else:
+                with st.spinner("Analisando fundamentos..."):
+                    analysis = analyze_fii_with_ai(fii_code_ia)
+                    
+                    if analysis:
+                        st.subheader(f"Análise Fundamentalista do {fii_code_ia}")
+                        st.write(analysis)
+                    else:
+                        st.error("Falha na análise. Verifique o código ou conexão.")
+    
 if __name__ == "__main__":
     main()
