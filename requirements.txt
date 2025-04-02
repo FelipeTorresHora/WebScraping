@@ -7,5 +7,5 @@ plotly
 python-dotenv
 google-generativeai
 prophet
-sklearn
+scikit-learn
 smtplib
