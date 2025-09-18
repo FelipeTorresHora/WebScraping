@@ -1,13 +1,22 @@
 import requests
 from bs4 import BeautifulSoup
-import locale
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 import os
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 load_dotenv()
+def parse_brazilian_number(text):
+    """
+    Converte número no formato brasileiro para float.
+    Exemplo: "1.234,56" -> 1234.56
+    """
+    # Remove espaços e converte vírgula para ponto, remove pontos de milhar
+    cleaned = text.replace('.', '').replace(',', '.').strip()
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
 
 @st.cache_data
 def obter_dados_fiis():
@@ -22,8 +31,8 @@ def obter_dados_fiis():
             linhas = tabela.find('tbody').find_all('tr')
             for linha in linhas:
                 dados_fundo = linha.find_all('td')
-                cotacao = locale.atof(dados_fundo[2].text.split()[0])
-                dy = locale.atof(dados_fundo[4].text.split('%')[0])
+                cotacao = parse_brazilian_number(dados_fundo[2].text.split()[0])
+                dy = parse_brazilian_number(dados_fundo[4].text.split('%')[0])
                 
                 if cotacao <= 3000 and dy <= 300:
                     dados.append({
@@ -31,11 +40,11 @@ def obter_dados_fiis():
                         'segmento': dados_fundo[1].text,
                         'cotação': cotacao,
                         'dividend_yield': dy,
-                        'p_vp': locale.atof(dados_fundo[5].text.split()[0]),
-                        'valor_mercado': locale.atof(dados_fundo[6].text.split()[0]),
-                        'liquidez': locale.atof(dados_fundo[7].text.split()[0]),
+                        'p_vp': parse_brazilian_number(dados_fundo[5].text.split()[0]),
+                        'valor_mercado': parse_brazilian_number(dados_fundo[6].text.split()[0]),
+                        'liquidez': parse_brazilian_number(dados_fundo[7].text.split()[0]),
                         'qt_imoveis': int(dados_fundo[8].text),
-                        'vacancia': locale.atof(dados_fundo[12].text.split('%')[0])
+                        'vacancia': parse_brazilian_number(dados_fundo[12].text.split('%')[0])
                     })
     except Exception as e:
         raise Exception(f"Erro ao obter dados: {str(e)}")
