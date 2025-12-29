@@ -5,8 +5,11 @@ from email.mime.application import MIMEApplication
 from fpdf import FPDF
 import os
 from dotenv import load_dotenv
+from logger_config import setup_logger
+from constants import SMTP_SERVER, SMTP_PORT
 
 load_dotenv()
+logger = setup_logger(__name__)
 
 def enviar_email(destinatario, assunto, corpo, anexo=None):
     """
@@ -19,10 +22,16 @@ def enviar_email(destinatario, assunto, corpo, anexo=None):
     :return: True se o envio for bem-sucedido, False caso contrário
     """
     # Configurações do servidor SMTP (exemplo com Gmail)
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    remetente = 'fhora93@gmail.com'
+    smtp_server = SMTP_SERVER
+    smtp_port = SMTP_PORT
+    remetente = os.getenv("SENDER_EMAIL")
     senha = os.getenv("Senha_Email")
+
+    # Validar variáveis de ambiente
+    if not remetente:
+        raise ValueError("SENDER_EMAIL não configurado no .env")
+    if not senha:
+        raise ValueError("Senha_Email não configurada no .env")
 
     # Criar mensagem
     msg = MIMEMultipart()
@@ -33,10 +42,17 @@ def enviar_email(destinatario, assunto, corpo, anexo=None):
 
     # Anexar arquivo, se fornecido
     if anexo:
-        with open(anexo, 'rb') as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(anexo))
-            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(anexo)}"'
-            msg.attach(part)
+        try:
+            with open(anexo, 'rb') as f:
+                part = MIMEApplication(f.read(), Name=os.path.basename(anexo))
+                part['Content-Disposition'] = f'attachment; filename="{os.path.basename(anexo)}"'
+                msg.attach(part)
+        except FileNotFoundError:
+            logger.error(f"Arquivo não encontrado: {anexo}")
+            raise FileNotFoundError(f"Arquivo não encontrado: {anexo}")
+        except IOError as e:
+            logger.error(f"Erro ao ler arquivo {anexo}: {e}")
+            raise IOError(f"Erro ao ler arquivo {anexo}: {e}")
 
     # Conectar ao servidor SMTP e enviar
     try:
@@ -45,9 +61,10 @@ def enviar_email(destinatario, assunto, corpo, anexo=None):
         server.login(remetente, senha)
         server.sendmail(remetente, destinatario, msg.as_string())
         server.quit()
+        logger.info(f"E-mail enviado com sucesso para {destinatario}")
         return True
     except Exception as e:
-        print(f"Erro ao enviar e-mail: {str(e)}")
+        logger.error(f"Erro ao enviar e-mail: {str(e)}")
         return False
 
 def gerar_pdf_relatorio(filtros, resultados, nome_arquivo='relatorio.pdf'):

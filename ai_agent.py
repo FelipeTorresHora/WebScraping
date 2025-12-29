@@ -5,9 +5,11 @@ from dotenv import load_dotenv
 from google.api_core.exceptions import NotFound
 from data import obter_dados_fiis
 import os
+from logger_config import setup_logger
 
 
 load_dotenv()
+logger = setup_logger(__name__)
 
 class GeminiAgent:
     def __init__(self, model_name="gemini-1.5-flash-002"): # Set Default Value Here.
@@ -23,15 +25,44 @@ class GeminiAgent:
     def get_response(self, prompt):
         """
         Gets a response from the Gemini model.
+
+        Args:
+            prompt (str): Prompt to send to the AI model
+
+        Returns:
+            str: Response from the model
+
+        Raises:
+            ValueError: If there's an error communicating with the API
         """
         try:
             response = self.chat.send_message(prompt)
             return response.text
         except Exception as e:
-            return f"Erro ao obter resposta da API: {e}"
+            logger.error(f"Erro ao obter resposta do Gemini: {e}")
+            raise ValueError(f"Falha ao obter resposta da IA: {str(e)}") from e
 
 def analyze_fii_with_ai(fii_code):
-    """Analisa um FII usando IA com dados fundamentais"""
+    """
+    Analisa um FII usando Google Gemini AI com base em dados fundamentais.
+
+    Busca dados fundamentais do FII (cotação, dividend yield, P/VP, etc.) e
+    envia para o modelo Gemini para análise qualitativa, identificando pontos
+    fortes, fracos e recomendações de investimento.
+
+    Args:
+        fii_code (str): Código do FII a ser analisado (ex: HGLG11)
+
+    Returns:
+        str: Análise textual gerada pela IA com:
+            - Análise de indicadores fundamentais
+            - Pontos fortes e fracos identificados
+            - Recomendação de investimento
+            - Perspectivas de curto/médio prazo
+
+    Note:
+        Requer chave de API do Google Gemini configurada em GEMINI_API
+    """
     agent = GeminiAgent()
     if not agent.api_key:
         return "Erro: Chave da API não configurada."

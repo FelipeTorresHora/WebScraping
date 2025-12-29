@@ -1,10 +1,52 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import re
 from data import obter_dados_fiis, get_historical_data
 from ml import prever_preco_prophet
 from envio import gerar_pdf_relatorio, enviar_email
 from ai_agent import analyze_fii_with_ai
+from logger_config import setup_logger
+
+logger = setup_logger(__name__)
+
+def validar_email(email):
+    """
+    Valida formato de email usando regex RFC 5322.
+
+    Args:
+        email (str): Endereço de email a ser validado
+
+    Returns:
+        bool: True se o email é válido, False caso contrário
+    """
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def build_filter_dict(min_cotacao, min_dy, min_valor_mercado,
+                     min_liquidez, min_qt_imoveis, max_vacancia):
+    """
+    Constrói dicionário de filtros aplicados.
+
+    Args:
+        min_cotacao: Cotação mínima
+        min_dy: Dividend Yield mínimo
+        min_valor_mercado: Valor de mercado mínimo
+        min_liquidez: Liquidez mínima
+        min_qt_imoveis: Quantidade mínima de imóveis
+        max_vacancia: Vacância máxima
+
+    Returns:
+        dict: Filtros formatados para exibição
+    """
+    return {
+        "Cotação Mínima (R$)": min_cotacao,
+        "Dividend Yield Mínimo (%)": min_dy,
+        "Valor de Mercado Mínimo (R$)": min_valor_mercado,
+        "Liquidez Mínima (R$)": min_liquidez,
+        "Quantidade Mínima de Imóveis": min_qt_imoveis,
+        "Vacância Máxima (%)": max_vacancia
+    }
 
 def main():
     st.set_page_config(page_title="Dashboard FIIs", layout="wide")
@@ -132,37 +174,32 @@ def main():
         
         with col_btn1:
             if st.button("Gerar Relatório PDF"):
-                filtros = {
-                    "Cotação Mínima (R$)": min_cotacao,
-                    "Dividend Yield Mínimo (%)": min_dy,
-                    "Valor de Mercado Mínimo (R$)": min_valor_mercado,
-                    "Liquidez Mínima (R$)": min_liquidez,
-                    "Quantidade Mínima de Imóveis": min_qt_imoveis,
-                    "Vacância Máxima (%)": max_vacancia
-                }
-                pdf_path = gerar_pdf_relatorio(filtros, df_filtrado)
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        label="Baixar Relatório PDF",
-                        data=f,
-                        file_name="relatorio_fiis.pdf",
-                        mime="application/pdf"
-                    )
+                filtros = build_filter_dict(min_cotacao, min_dy, min_valor_mercado,
+                                           min_liquidez, min_qt_imoveis, max_vacancia)
+                try:
+                    pdf_path = gerar_pdf_relatorio(filtros, df_filtrado)
+                    with open(pdf_path, "rb") as f:
+                        st.download_button(
+                            label="Baixar Relatório PDF",
+                            data=f,
+                            file_name="relatorio_fiis.pdf",
+                            mime="application/pdf"
+                        )
+                except FileNotFoundError as e:
+                    logger.error(f"Arquivo PDF não encontrado: {e}")
+                    st.error("Erro ao gerar relatório PDF.")
+                except IOError as e:
+                    logger.error(f"Erro ao ler arquivo PDF: {e}")
+                    st.error("Erro ao processar o arquivo PDF.")
         
         with col_btn2:
             email_destinatario = st.text_input("Digite o e-mail para envio", "exemplo@email.com")
             if st.button("Enviar Relatório por E-mail"):
-                if not email_destinatario or "@" not in email_destinatario:
+                if not email_destinatario or not validar_email(email_destinatario):
                     st.error("Por favor, insira um e-mail válido.")
                 else:
-                    filtros = {
-                        "Cotação Mínima (R$)": min_cotacao,
-                        "Dividend Yield Mínimo (%)": min_dy,
-                        "Valor de Mercado Mínimo (R$)": min_valor_mercado,
-                        "Liquidez Mínima (R$)": min_liquidez,
-                        "Quantidade Mínima de Imóveis": min_qt_imoveis,
-                        "Vacância Máxima (%)": max_vacancia
-                    }
+                    filtros = build_filter_dict(min_cotacao, min_dy, min_valor_mercado,
+                                               min_liquidez, min_qt_imoveis, max_vacancia)
                     pdf_path = gerar_pdf_relatorio(filtros, df_filtrado)
                     corpo_email = (
                         "Prezado(a),\n\n"

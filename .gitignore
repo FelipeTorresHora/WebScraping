@@ -1,5 +1,18 @@
-.env  
-__pycache__/  
+.env
+__pycache__/
 venv/
 .vscode/
 .claude
+
+# Logs
+app.log
+*.log
+
+# Test coverage reports
+htmlcov/
+.coverage
+.pytest_cache/
+
+# PDF reports
+relatorio.pdf
+relatorio_fiis.pdf

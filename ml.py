@@ -1,8 +1,31 @@
 import pandas as pd
 from prophet import Prophet
 from sklearn.metrics import r2_score, mean_absolute_error
+from logger_config import setup_logger
+
+logger = setup_logger(__name__)
 
 def prever_preco_prophet(df_historical, days_futuro=30, window=5):
+    """
+    Realiza predição de preços usando o modelo Prophet do Facebook.
+
+    Args:
+        df_historical (pd.DataFrame): DataFrame com colunas 'date' e 'price'
+        days_futuro (int): Número de dias úteis para prever (padrão: 30)
+        window (int): Janela para média móvel de suavização (padrão: 5)
+
+    Returns:
+        dict: Dicionário com chaves:
+            - forecast: DataFrame Prophet com predições
+            - modelo: Modelo Prophet treinado
+            - r2: Coeficiente R² do ajuste
+            - mae: Erro absoluto médio
+            - ultima_previsao: Última predição de preço
+        None: Em caso de erro na predição
+
+    Raises:
+        ValueError: Se o DataFrame não contiver as colunas necessárias
+    """
     try:
         # Verificar se df_historical tem os dados necessários
         if 'price' not in df_historical.columns or 'date' not in df_historical.columns:
@@ -57,8 +80,8 @@ def prever_preco_prophet(df_historical, days_futuro=30, window=5):
         y_true = df_prophet['y'].values
         
         if len(y_true) != len(forecast_historical):
-            print(f"Datas históricas: {df_prophet['ds'].tolist()}")
-            print(f"Datas previstas alinhadas: {forecast[forecast['ds'].isin(df_prophet['ds'])]['ds'].tolist()}")
+            logger.debug(f"Datas históricas: {df_prophet['ds'].tolist()}")
+            logger.debug(f"Datas previstas alinhadas: {forecast[forecast['ds'].isin(df_prophet['ds'])]['ds'].tolist()}")
             raise ValueError(f"Tamanhos incompatíveis após alinhamento: y_true ({len(y_true)}) e forecast_historical ({len(forecast_historical)}).")
         
         return {
@@ -68,7 +91,7 @@ def prever_preco_prophet(df_historical, days_futuro=30, window=5):
             'mae': mean_absolute_error(y_true, forecast_historical),
             'ultima_previsao': forecast['yhat'].values[-1]
         }
-    
+
     except Exception as e:
-        print(f"Erro na função prever_preco_prophet: {str(e)}")
+        logger.error(f"Erro na função prever_preco_prophet: {str(e)}")
         return None
